@@ -13,6 +13,6 @@
    ============================================================ */
 window.MODULE_VIDEOS = {
   "1.1": "https://youtu.be/_lQc9bSH6ek",   // Common Documentation
-  "1.2": "",   // Life Cycle Management
+  "1.2": "https://youtu.be/qtYKim6xUzU",   // Life Cycle Management
   "1.3": ""    // Change & Configuration Management
 };
