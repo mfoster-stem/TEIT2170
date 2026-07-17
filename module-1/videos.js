@@ -12,7 +12,7 @@
      those only play inside Canvas.
    ============================================================ */
 window.MODULE_VIDEOS = {
-  "1.1": "",   // Common Documentation
+  "1.1": "https://lti.acilearning.com/api/v1/tool/xmyeAffNzE9CnUihL8Q2qTDGoQdZotqn",   // Common Documentation
   "1.2": "",   // Life Cycle Management
   "1.3": ""    // Change & Configuration Management
 };
