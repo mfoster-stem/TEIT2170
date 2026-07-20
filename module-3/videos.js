@@ -1,5 +1,5 @@
 /* ============================================================
-   MODULE 1 — VIDEO LINKS
+   MODULE 3 — VIDEO LINKS
    Paste a video embed URL between the quotes for each slot,
    then save this file and re-upload it (this small file only —
    you never need to touch index.html).
@@ -12,7 +12,10 @@
      those only play inside Canvas.
    ============================================================ */
 window.MODULE_VIDEOS = {
-  "1.1": "",   // Common Documentation
-  "1.2": "",   // Life Cycle Management
-  "1.3": ""    // Change & Configuration Management
+  "3.1": "",   // Disaster Recovery Metrics
+  "3.2": "",   // Disaster Recovery Sites
+  "3.3": "",   // High Availability Approaches
+  "3.4": "",   // DHCP
+  "3.5": "",   // DNS
+  "3.6": ""    // Time Protocols
 };
