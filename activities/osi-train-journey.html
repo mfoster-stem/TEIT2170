@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OSI Line — ride the packet</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0A0E12; --panel:#10161D; --panel2:#141C25; --panel3:#0D131A;
+  --border:#212B35; --border-soft:#1A222B;
+  --text:#E8EDF2; --muted:#8393A3; --dim:#546374;
+  --accent:#52B788; --amber:#FCBF49;
+  --l1:#D62839; --l2:#F4743B; --l3:#FCBF49; --l4:#52B788; --l5:#4895EF; --l6:#6D5DFC; --l7:#B14AED;
+  --font-d:'IBM Plex Sans',sans-serif; --font-m:'IBM Plex Mono',monospace;
+}
+*{box-sizing:border-box;}
+body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font-d);
+  background-image:radial-gradient(circle at 85% -10%, #10202a 0%, var(--bg) 45%);}
+#app{max-width:1180px;margin:0 auto;padding:28px 22px 64px;}
+
+header{margin-bottom:20px;}
+.eyebrow{font-family:var(--font-m);font-size:12px;letter-spacing:.14em;color:var(--accent);text-transform:uppercase;}
+h1{font-size:clamp(26px,4vw,38px);margin:6px 0 8px;font-weight:700;letter-spacing:-0.01em;}
+h1 span{color:var(--dim);font-weight:400;}
+.sub{color:var(--muted);max-width:680px;line-height:1.55;font-size:14.5px;}
+.sub b{color:var(--text);}
+
+#controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;
+  background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:16px;margin:20px 0 16px;}
+.ctrl label{display:block;font-family:var(--font-m);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;}
+select{width:100%;background:var(--panel3);border:1px solid var(--border);color:var(--text);padding:9px 10px;border-radius:8px;font-family:var(--font-d);font-size:14px;}
+.toggle-row{display:flex;gap:8px;width:100%;}
+.toggle-btn{flex:1;background:var(--panel3);border:1px solid var(--border);color:var(--muted);padding:9px 8px;border-radius:8px;
+  font-family:var(--font-d);font-size:13px;cursor:pointer;transition:.15s;}
+.toggle-btn:hover{border-color:#33414f;color:var(--text);}
+.toggle-btn.active{background:linear-gradient(180deg,#1a2b23,#122019);border-color:var(--accent);color:var(--accent);}
+.toggle-btn.active.amber{background:linear-gradient(180deg,#2b2413,#201a0d);border-color:var(--amber);color:var(--amber);}
+.toggle-btn:disabled{opacity:.35;cursor:not-allowed;}
+.hint{font-size:11px;color:var(--dim);margin-top:5px;line-height:1.4;}
+
+#sendbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px;}
+#sendBtn{background:var(--accent);color:#08130E;border:none;font-family:var(--font-m);font-weight:600;
+  padding:12px 22px;border-radius:10px;font-size:14px;letter-spacing:.03em;cursor:pointer;transition:.15s;}
+#sendBtn:hover{filter:brightness(1.08);transform:translateY(-1px);}
+#sendBtn:disabled{opacity:.5;cursor:not-allowed;transform:none;}
+.stepbtn{background:var(--panel3);border:1px solid var(--border);color:var(--text);width:38px;height:38px;border-radius:8px;cursor:pointer;font-size:15px;}
+.stepbtn:hover{border-color:#33414f;}
+#hopHint{font-family:var(--font-m);font-size:12px;color:var(--muted);}
+
+/* TRACK / STATIONS — the everynoise-ish, click-anything map */
+#trackScroller{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:26px 10px 18px;
+  overflow-x:auto;overflow-y:hidden;}
+#trackInner{position:relative;display:flex;align-items:flex-end;height:120px;min-width:max-content;padding:0 40px;}
+.stationWrap{display:flex;flex-direction:column;align-items:center;position:relative;z-index:2;}
+.track-seg{position:absolute;bottom:35px;height:3px;left:calc(-50% - 6px);width:calc(100% + 12px);
+  background:repeating-linear-gradient(90deg, var(--sc) 0 8px, transparent 8px 15px);z-index:0;}
+.stationWrap:first-child .track-seg{display:none;}
+.station{width:56px;height:56px;border-radius:50%;border:2.5px solid var(--sc);background:var(--panel3);
+  display:flex;align-items:center;justify-content:center;cursor:pointer;transition:.18s;position:relative;z-index:2;
+  box-shadow:0 0 0 0 transparent;}
+.station:hover{transform:translateY(-3px) scale(1.06);box-shadow:0 6px 18px -6px var(--sc);}
+.station.on{background:color-mix(in srgb, var(--sc) 30%, var(--panel3));box-shadow:0 0 0 5px color-mix(in srgb, var(--sc) 25%, transparent);}
+.station .ic{width:24px;height:24px;color:var(--sc);}
+.station-label{font-family:var(--font-m);font-size:10.5px;color:var(--muted);text-align:center;margin-top:8px;
+  max-width:82px;line-height:1.3;white-space:nowrap;}
+.station.on ~ .station-label, .stationWrap:has(.station.on) .station-label{color:var(--text);}
+#train{position:absolute;bottom:22px;width:44px;height:26px;z-index:3;transition:left .68s cubic-bezier(.45,0,.2,1);pointer-events:none;}
+#train svg{width:100%;height:100%;}
+
+/* DISPATCH / CAMERA WINDOW */
+#dispatch{display:grid;grid-template-columns:1.15fr 1fr;gap:14px;margin-top:16px;}
+@media (max-width:820px){#dispatch{grid-template-columns:1fr;}}
+#caption{background:var(--panel3);border:1px solid var(--border-soft);border-radius:12px;padding:16px 18px;transition:opacity .12s;}
+#caption .step-tag{font-family:var(--font-m);font-size:11px;color:var(--lc,var(--accent));text-transform:uppercase;letter-spacing:.08em;margin-bottom:5px;}
+#caption h3{margin:0 0 6px;font-size:16px;}
+#caption p{margin:0;color:var(--muted);font-size:13.5px;line-height:1.6;}
+#deepDiveBtn{margin-top:12px;background:transparent;border:1px dashed var(--dim);color:var(--muted);
+  padding:8px 12px;border-radius:8px;font-family:var(--font-m);font-size:11.5px;cursor:pointer;transition:.15s;}
+#deepDiveBtn:hover{border-color:var(--accent);color:var(--accent);}
+.hint.warn{color:var(--l1);}
+.toggle-btn.active.warn{background:linear-gradient(180deg,#2b1414,#201010);border-color:var(--l1);color:#ff8a8a;}
+
+#cargoPanel{background:var(--panel3);border:1px solid var(--border-soft);border-radius:12px;padding:16px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:120px;}
+.cargo-title{font-family:var(--font-m);font-size:10.5px;color:var(--dim);text-transform:uppercase;letter-spacing:.08em;align-self:flex-start;margin-bottom:10px;}
+#ringzone{display:flex;align-items:center;justify-content:center;width:100%;}
+.ring{border-radius:12px;border:2px solid var(--rc);background:color-mix(in srgb, var(--rc) 10%, transparent);
+  padding:10px;display:flex;flex-direction:column;align-items:center;gap:8px;cursor:pointer;transition:transform .18s;}
+.ring:hover{transform:scale(1.02);}
+.ring-label{font-family:var(--font-m);font-size:10.5px;color:var(--rc);text-transform:uppercase;letter-spacing:.06em;
+  background:var(--panel);padding:2px 7px;border-radius:6px;border:1px solid var(--rc);align-self:flex-start;}
+.data-chip{font-family:var(--font-m);font-size:11.5px;background:var(--panel);border:1px dashed var(--dim);border-radius:7px;
+  padding:10px 16px;color:var(--text);}
+
+/* ZOOM OVERLAY */
+#zoomOverlay, #stationZoomOverlay{position:fixed;inset:0;background:rgba(6,9,12,.86);backdrop-filter:blur(3px);
+  display:flex;align-items:center;justify-content:center;z-index:50;opacity:0;pointer-events:none;transition:opacity .2s;}
+#zoomOverlay.show, #stationZoomOverlay.show{opacity:1;pointer-events:auto;}
+.zoomcard .dive-note{margin-top:4px;padding:10px 12px;border-radius:8px;font-size:13px;line-height:1.55;}
+.zoomcard .dive-note.safe{background:color-mix(in srgb, var(--accent) 12%, transparent);border:1px solid color-mix(in srgb, var(--accent) 40%, transparent);color:var(--text);}
+.zoomcard .dive-note.risk{background:color-mix(in srgb, var(--l1) 14%, transparent);border:1px solid color-mix(in srgb, var(--l1) 45%, transparent);color:#ffd0d0;}
+.zoomcard{width:min(560px,90vw);background:var(--panel);border:1.5px solid var(--zc,var(--accent));border-radius:16px;
+  padding:26px 26px 22px;transform:scale(.92);transition:transform .2s;box-shadow:0 20px 60px rgba(0,0,0,.5);}
+#zoomOverlay.show .zoomcard{transform:scale(1);}
+.zoomcard .ztag{font-family:var(--font-m);font-size:11px;color:var(--zc,var(--accent));text-transform:uppercase;letter-spacing:.1em;}
+.zoomcard h2{margin:8px 0 12px;font-size:22px;}
+.zoomcard p{color:var(--muted);line-height:1.6;font-size:14.5px;margin:0 0 14px;}
+.fieldrow{display:flex;justify-content:space-between;font-family:var(--font-m);font-size:12.5px;
+  border-top:1px solid var(--border-soft);padding:7px 0;color:var(--text);}
+.fieldrow span:first-child{color:var(--dim);}
+.zclose{margin-top:16px;background:var(--panel3);border:1px solid var(--border);color:var(--text);padding:9px 16px;
+  border-radius:8px;cursor:pointer;font-family:var(--font-d);font-size:13px;}
+.zclose:hover{border-color:#33414f;}
+
+#reference{margin-top:22px;background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:18px 20px;}
+#reference summary{cursor:pointer;font-family:var(--font-m);font-size:13px;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;outline:none;}
+table{width:100%;border-collapse:collapse;margin-top:14px;font-size:13.5px;}
+th{text-align:left;font-family:var(--font-m);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;
+  padding:8px 10px;border-bottom:1px solid var(--border);}
+td{padding:8px 10px;border-bottom:1px solid var(--border-soft);}
+td:first-child{font-family:var(--font-m);color:var(--amber);}
+.footnote{color:var(--dim);font-size:12px;margin-top:10px;line-height:1.5;}
+</style>
+</head>
+<body>
+<div id="app">
+
+<header>
+  <div class="eyebrow">Networking / OSI Model</div>
+  <h1>The OSI Line — <span>ride along.</span></h1>
+  <p class="sub">Every stop below is a real OSI layer. <b>Click any station any time</b> to jump straight there and see what's happening to your packet. Or hit <b>Send</b> and ride the whole route, camera on the packet, station to station. Layer&nbsp;1 doesn't get its own stop — it <i>is</i> the track: the actual signal your train rides on.</p>
+</header>
+
+<div id="controls">
+  <div class="ctrl">
+    <label for="dataType">What are you sending?</label>
+    <select id="dataType"></select>
+  </div>
+  <div class="ctrl">
+    <label>Encryption</label>
+    <div class="toggle-row">
+      <button class="toggle-btn active" id="btnEncrypted">Encrypted</button>
+      <button class="toggle-btn" id="btnPlain">Unencrypted</button>
+    </div>
+    <div class="hint" id="encHint">Recommended — TLS scrambles the payload so only the two endpoints can read it.</div>
+  </div>
+  <div class="ctrl">
+    <label>Network</label>
+    <div class="toggle-row">
+      <button class="toggle-btn active" id="btnSwitch">Simple — Switch</button>
+      <button class="toggle-btn" id="btnRouter">Routed — Router</button>
+    </div>
+  </div>
+  <div class="ctrl">
+    <label>Trunking (802.1Q)</label>
+    <div class="toggle-row"><button class="toggle-btn" id="btnTrunk">Off</button></div>
+    <div class="hint">Switched LAN only — carries multiple VLANs over one link.</div>
+  </div>
+  <div class="ctrl">
+    <label>VPN Tunnel</label>
+    <div class="toggle-row"><button class="toggle-btn" id="btnVpn" disabled>Off</button></div>
+    <div class="hint">Routed network only — wraps the whole packet in a new outer packet.</div>
+  </div>
+</div>
+
+<div id="sendbar">
+  <button id="sendBtn">🚆 SEND — ride the line</button>
+  <button class="stepbtn" id="prevBtn">‹</button>
+  <button class="stepbtn" id="nextBtn">›</button>
+  <span id="hopHint">Click any station to explore</span>
+</div>
+
+<div id="trackScroller">
+  <div id="trackInner">
+    <div id="train"></div>
+  </div>
+</div>
+
+<div id="dispatch">
+  <div id="caption">
+    <div class="step-tag" id="capTag">Ready</div>
+    <h3 id="capTitle">Pick your options, then click a station or hit Send</h3>
+    <p id="capText">Every stop is independently clickable — explore in any order, any time, like flipping through channels.</p>
+    <button id="deepDiveBtn">⤢ Deep dive — ports, protocol &amp; exposure at this stop</button>
+  </div>
+  <div id="cargoPanel">
+    <div class="cargo-title">Camera on the packet — current cargo</div>
+    <div id="ringzone"></div>
+  </div>
+</div>
+
+<details id="reference">
+  <summary>Common ports reference (Transport layer)</summary>
+  <table>
+    <thead><tr><th>Port</th><th>Protocol</th><th>What it's for</th></tr></thead>
+    <tbody id="portTable"></tbody>
+  </table>
+  <p class="footnote">The destination port is how a receiving computer, after every other header is stripped away, knows exactly which application should get the data. The source port is how the reply finds its way back.</p>
+</details>
+
+<p class="footnote" style="margin-top:16px;">Note on layers 5–7: OSI treats Session, Presentation, and Application as three separate stops, each conceptually adding its own control info. In real TCP/IP traffic that work usually happens inside the application protocol itself (TLS handles encryption <i>and</i> session state, for instance) rather than as three distinct headers — this line keeps them as separate stations because that's the job split OSI defines, not because a packet capture would show three headers.</p>
+
+</div>
+
+<div id="zoomOverlay"><div class="zoomcard" id="zoomCard"></div></div>
+<div id="stationZoomOverlay"><div class="zoomcard" id="stationZoomCard"></div></div>
+
+<script>
+const LAYERS = {
+ 7:{name:"Application",pdu:"Data",job:"The layer where the actual protocol your app speaks lives — HTTP, SMTP, DNS, FTP. Only layer that knows what the message really means.",adds:"The raw request or message itself."},
+ 6:{name:"Presentation",pdu:"Data",job:"Puts data into a format both ends agree on: encryption (TLS), compression, character encoding.",adds:"Encoding / encryption applied to the payload."},
+ 5:{name:"Session",pdu:"Data",job:"Opens, manages, and tears down the logical conversation between the two applications.",adds:"Session establishment / tracking info."},
+ 4:{name:"Transport",pdu:"Segment",job:"Splits data into segments (TCP) or datagrams (UDP) and adds source & destination PORT numbers, so the receiving OS knows which application should get this. TCP also adds sequencing and reliability.",adds:"Transport header — source port, destination port, sequence/ack info."},
+ 3:{name:"Network",pdu:"Packet",job:"Adds logical addressing — source and destination IP address — so the packet can be routed across multiple networks.",adds:"IP header — source IP, destination IP, TTL."},
+ 2:{name:"Data Link",pdu:"Frame",job:"Adds physical addressing — source & destination MAC address — valid only for the current hop, plus error-checking. Switches live here.",adds:"Frame header — source MAC, destination MAC (+ VLAN tag if trunking) — and an FCS trailer."}
+};
+
+const DATA_TYPES = {
+ web:  {label:"Web browsing — HTTPS", app:"HTTPS", proto:"TCP", dport:443, note:"Your browser's HTTPS request. TLS (Presentation) encrypts it before Transport ever sees it."},
+ email:{label:"Sending email — SMTP", app:"SMTP", proto:"TCP", dport:25, note:"Your mail client handing a message to an outgoing mail server."},
+ dns:  {label:"DNS lookup", app:"DNS", proto:"UDP", dport:53, note:"A tiny one-shot query, so it rides UDP instead of TCP."},
+ ftp:  {label:"File transfer — FTP", app:"FTP", proto:"TCP", dport:21, note:"FTP's control channel; the file itself moves on a separate data connection."},
+ video:{label:"Video call — RTP", app:"RTP", proto:"UDP", dport:"Dynamic (16384–32767)", note:"Real-time media prefers UDP — a dropped frame beats a delayed one."}
+};
+
+const PORTS = [
+ ["20 / 21","FTP","File transfer — data / control"],["22","SSH","Encrypted remote login"],
+ ["25","SMTP","Sending email"],["53","DNS","Name resolution"],["67 / 68","DHCP","Automatic IP assignment"],
+ ["80","HTTP","Unencrypted web traffic"],["110","POP3","Retrieving email"],["143","IMAP","Retrieving / syncing email"],
+ ["443","HTTPS","Encrypted web traffic"],["3389","RDP","Remote desktop"]
+];
+
+const ICONS = {
+  layer: n => `<svg class="ic" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="4" stroke="currentColor" stroke-width="2"/><text x="12" y="16" font-size="10" font-family="IBM Plex Mono" text-anchor="middle" fill="currentColor">L${n}</text></svg>`,
+  switch: `<svg class="ic" viewBox="0 0 24 24" fill="none"><rect x="2" y="7" width="20" height="11" rx="2" stroke="currentColor" stroke-width="2"/><path d="M6 11h2M10 11h2M14 11h2M6 14h2M10 14h2M14 14h2" stroke="currentColor" stroke-width="1.4"/></svg>`,
+  router: `<svg class="ic" viewBox="0 0 24 24" fill="none"><rect x="2" y="9" width="20" height="10" rx="2" stroke="currentColor" stroke-width="2"/><path d="M7 9V6a2 2 0 012-2h6a2 2 0 012 2v3" stroke="currentColor" stroke-width="2"/><circle cx="8" cy="14" r="1" fill="currentColor"/><circle cx="12" cy="14" r="1" fill="currentColor"/><circle cx="16" cy="14" r="1" fill="currentColor"/></svg>`,
+  vpn: `<svg class="ic" viewBox="0 0 24 24" fill="none"><path d="M12 2l7 4v6c0 5-3.5 8-7 10-3.5-2-7-5-7-10V6l7-4z" stroke="currentColor" stroke-width="2"/></svg>`
+};
+
+let cfg = {dataType:'web', topology:'switch', trunk:false, vpn:false, encrypted:true};
+let stations = [];
+let idx = 0;
+let positions = [];
+let playToken = 0;
+let lastCtx = {};
+
+function rand(a,b){return Math.floor(a+Math.random()*(b-a));}
+function ring(label, colorVar, fields){ return {label, color: colorVar, fields: fields||[]}; }
+function delay(ms){ return new Promise(r=>setTimeout(r,ms)); }
+
+function buildStations(){
+  const dt = DATA_TYPES[cfg.dataType];
+  const sport = rand(49152,65535);
+  const srcMacA = "AA:1B:C2:0D:33:E4";
+  const dstMacLocal = cfg.topology==='switch' ? "AA:1B:C2:0F:77:99" : "F0:9E:GW:01:00:AA";
+  const srcIP = "192.168.1.10";
+  const dstIP = cfg.topology==='router' ? "203.0.113.50" : "192.168.1.20";
+  lastCtx = {dt, sport, srcMacA, dstMacLocal, srcIP, dstIP};
+  const list = [];
+  let rings = [];
+  function add(o){ list.push(Object.assign({rings: rings.slice()}, o)); }
+
+  rings = [ring("L7 · Data","var(--l7)",[["App",dt.app],["Payload",cfg.encrypted?dt.label:dt.label+" (plaintext)"]])];
+  add({tag:"L7 · Application", color:"var(--l7)", icon:ICONS.layer(7),
+    title:"The message is created", text:`You hit send. The ${dt.app} app builds the request. ${dt.note}`});
+
+  rings = [ring("L6 · "+(cfg.encrypted?"Encrypted":"Plaintext"),cfg.encrypted?"var(--l6)":"var(--l1)",
+      [["Formatting","Applied"],["Encryption", cfg.encrypted ? "TLS — payload scrambled" : "None — payload sent as readable text"]]), ...rings];
+  add({tag:"L6 · Presentation", color: cfg.encrypted?"var(--l6)":"var(--l1)", icon:ICONS.layer(6),
+    title: cfg.encrypted ? "Formatted and encrypted" : "Formatted — but left in the clear",
+    text: cfg.encrypted
+      ? "Data is put into a shared format and encrypted here, so from this point on the payload is unreadable to anyone but the two endpoints."
+      : "Data is put into a shared format but not encrypted. The payload itself will ride every remaining hop as plain, readable text — anyone who taps the line in between (a shared Wi‑Fi network, a compromised router, an ISP) can read or alter it."});
+
+  rings = [ring("L5 · Session","var(--l5)",[["Session","Established"]]), ...rings];
+  add({tag:"L5 · Session", color:"var(--l5)", icon:ICONS.layer(5),
+    title:"A conversation is opened", text:"A logical session between the two apps is tracked so replies stay matched to this exchange."});
+
+  rings = [ring(`L4 · ${dt.proto==='TCP'?'Segment':'Datagram'}`,"var(--l4)",[["Src Port",sport],["Dst Port",dt.dport],["Protocol",dt.proto]]), ...rings];
+  add({tag:"L4 · Transport", color:"var(--l4)", icon:ICONS.layer(4),
+    title:`Wrapped in a ${dt.proto} ${dt.proto==='TCP'?'segment':'datagram'}`,
+    text:`Header added: source port ${sport} → destination port ${dt.dport}. That destination port is how Host B knows which app should get this.`});
+
+  rings = [ring("L3 · Packet","var(--l3)",[["Src IP",srcIP],["Dst IP",dstIP],["TTL","64"]]), ...rings];
+  add({tag:"L3 · Network", color:"var(--l3)", icon:ICONS.layer(3),
+    title:"Wrapped in an IP packet", text:`Source/destination IP added (${srcIP} → ${dstIP}) so this can be routed across networks.`});
+
+  const l2fields = [["Src MAC",srcMacA],["Dst MAC",dstMacLocal]];
+  if(cfg.trunk && cfg.topology==='switch') l2fields.splice(2,0,["VLAN Tag (802.1Q)","VLAN 20"]);
+  rings = [ring("L2 · Frame","var(--l2)",l2fields), ...rings];
+  add({tag:"L2 · Data Link", color:"var(--l2)", icon:ICONS.layer(2),
+    title:"Wrapped in a frame — boards the train", text:`MAC header added — valid only for this one hop.${cfg.trunk&&cfg.topology==='switch' ? ' Since this is a trunk link, an 802.1Q VLAN tag rides along too.' : ''} Layer 1 has no stop of its own: the frame becomes signal and the train departs on the rails.`});
+
+  if(cfg.topology==='switch'){
+    add({tag:"Switch · Layer 2 device", color:"var(--l2)", icon:ICONS.switch, kind:'device',
+      title:"Switch reads only the frame", text:`It checks the destination MAC address and forwards out the right port — never opens anything above Layer 2.${cfg.trunk?' It also reads the VLAN tag to keep VLANs separated on this trunk.':''}`});
+  } else {
+    let stripped = rings.filter(r=>r.label!=="L2 · Frame");
+    rings = stripped;
+    add({tag:"Router · step 1", color:"var(--l3)", icon:ICONS.router, kind:'device',
+      title:"Old frame removed", text:"The router strips the Layer 2 frame — that MAC addressing only applied to the hop that just ended."});
+    add({tag:"Router · step 2", color:"var(--l3)", icon:ICONS.router, kind:'device',
+      title:"Reads the IP packet to route it", text:`Destination IP (${dstIP}) is checked against the routing table to pick the best path onward. Layer 3 and up stay untouched.`});
+    if(cfg.vpn){
+      let t = ring("Tunnel · Outer IP + ESP","var(--amber)",[["Outer Src","GW1"],["Outer Dst","GW2"],["Payload","Original packet, encrypted"]]);
+      rings = [t, ...rings];
+      add({tag:"VPN Gateway · Tunnel", color:"var(--amber)", icon:ICONS.vpn, kind:'device',
+        title:"Wrapped again — packet inside a packet", text:"The VPN gateway wraps the entire original IP packet, headers included, as the encrypted payload of a brand-new outer packet (IPsec/GRE-style tunneling)."});
+    }
+    rings = [ring("L2 · New Frame","var(--l2)",[["Src MAC","Router-Out"],["Dst MAC","Next-Hop"]]), ...rings];
+    add({tag:"Router · step 3", color:"var(--l2)", icon:ICONS.router, kind:'device',
+      title:"A brand-new frame is built", text:"A fresh Layer 2 frame is addressed to the next device on the new link, and the train departs again."});
+  }
+
+  // decapsulation, mirrored
+  const decapBase = [
+    ring("L2 · Frame","var(--l2)",l2fields),
+    ring("L3 · Packet","var(--l3)",[["Src IP",srcIP],["Dst IP",dstIP],["TTL","64"]]),
+    ring(`L4 · ${dt.proto==='TCP'?'Segment':'Datagram'}`,"var(--l4)",[["Src Port",sport],["Dst Port",dt.dport],["Protocol",dt.proto]]),
+    ring("L5 · Session","var(--l5)",[["Session","Established"]]),
+    ring("L6 · "+(cfg.encrypted?"Encrypted":"Plaintext"), cfg.encrypted?"var(--l6)":"var(--l1)",
+      [["Encryption", cfg.encrypted ? "TLS — payload scrambled" : "None — payload readable"]]),
+    ring("L7 · Data","var(--l7)",[["App",dt.app],["Payload",cfg.encrypted?dt.label:dt.label+" (plaintext)"]])
+  ];
+  if(cfg.vpn && cfg.topology==='router'){
+    add({tag:"VPN Gateway · Unwrap", color:"var(--amber)", icon:ICONS.vpn, kind:'device',
+      title:"Tunnel wrapper removed", text:"The receiving gateway strips the outer tunnel header and decrypts, recovering the original packet exactly as it looked before entering the tunnel."});
+  }
+  rings = decapBase.slice(0);
+  add({tag:"L2 · Data Link", color:"var(--l2)", icon:ICONS.layer(2),
+    title:"Arrives — frame header stripped", text:"Host B's network card confirms the frame is addressed to it, strips the frame header, and hands the packet upward."});
+  rings = decapBase.slice(1);
+  add({tag:"L3 · Network", color:"var(--l3)", icon:ICONS.layer(3),
+    title:"IP header stripped", text:"The IP header is checked and removed — this becomes a segment again."});
+  rings = decapBase.slice(2);
+  add({tag:"L4 · Transport", color:"var(--l4)", icon:ICONS.layer(4),
+    title:"Delivered by port number", text:`Destination port ${dt.dport} is read to hand the data to the exact right application — the moment the OS decides who gets it.`});
+  rings = decapBase.slice(3);
+  add({tag:"L5 · Session", color:"var(--l5)", icon:ICONS.layer(5),
+    title:"Session matched", text:"Data is matched to the correct ongoing session."});
+  rings = decapBase.slice(4);
+  add({tag:"L6 · Presentation", color: cfg.encrypted?"var(--l6)":"var(--l1)", icon:ICONS.layer(6),
+    title: cfg.encrypted ? "Decoded and decrypted" : "Decoded — it was never encrypted",
+    text: cfg.encrypted
+      ? "Data is decrypted and decoded back into a usable format — this is the first point since Host A where the payload has been readable again."
+      : "Data is decoded back into a usable format. Since it was never encrypted, it was actually readable at every hop along the way, not just here."});
+  rings = decapBase.slice(5);
+  add({tag:"L7 · Application", color:"var(--l7)", icon:ICONS.layer(7),
+    title:"Delivered — end of the line", text:`The ${dt.app} application on Host B receives the original message, identical to what Host A sent.`});
+
+  return list;
+}
+
+function trainSVG(color){
+  return `<svg viewBox="0 0 44 26"><rect x="1" y="4" width="42" height="16" rx="5" fill="${color}" opacity="0.9"/>
+    <rect x="6" y="8" width="8" height="6" rx="1.5" fill="#0A0E12"/><rect x="18" y="8" width="8" height="6" rx="1.5" fill="#0A0E12"/>
+    <circle cx="10" cy="22" r="3" fill="#0A0E12"/><circle cx="34" cy="22" r="3" fill="#0A0E12"/></svg>`;
+}
+
+function renderStations(){
+  const inner = document.getElementById('trackInner');
+  inner.innerHTML = '<div id="train"></div>';
+  stations.forEach((st,i)=>{
+    const wrap = document.createElement('div');
+    wrap.className='stationWrap';
+    wrap.style.setProperty('--sc', st.color);
+    wrap.innerHTML = `<div class="track-seg"></div>
+      <button class="station" data-idx="${i}" title="${st.tag}">${st.icon}</button>
+      <div class="station-label">${st.tag}</div>`;
+    inner.appendChild(wrap);
+    wrap.querySelector('.station').addEventListener('click', ()=>{ cancelJourney(); goStation(i,true); });
+  });
+  document.getElementById('train').innerHTML = trainSVG('var(--accent)');
+}
+
+function measurePositions(){
+  return Array.from(document.querySelectorAll('.station')).map(el=>el.offsetLeft + el.offsetWidth/2);
+}
+
+function moveTrainTo(i, animate){
+  const train = document.getElementById('train');
+  const pos = positions[i];
+  train.style.transition = animate ? 'left .68s cubic-bezier(.45,0,.2,1)' : 'none';
+  train.style.left = (pos - 22) + 'px';
+  const scroller = document.getElementById('trackScroller');
+  scroller.scrollTo({left: Math.max(0,pos - scroller.clientWidth/2), behavior: animate?'smooth':'auto'});
+}
+
+function highlightStation(i){
+  document.querySelectorAll('.station').forEach(el=>el.classList.remove('on'));
+  const el = document.querySelector(`.station[data-idx="${i}"]`);
+  if(el) el.classList.add('on');
+  document.getElementById('train').innerHTML = trainSVG(stations[i].color);
+}
+
+function renderRings(rings){
+  const zone = document.getElementById('ringzone');
+  if(!rings.length){ zone.innerHTML=''; return; }
+  function build(k){
+    if(k>=rings.length) return `<div class="data-chip">DATA</div>`;
+    const r = rings[k];
+    return `<div class="ring" style="--rc:${r.color}" data-ridx="${k}"><div class="ring-label">${r.label}</div>${build(k+1)}</div>`;
+  }
+  zone.innerHTML = build(0);
+  zone.querySelectorAll('.ring').forEach(el=>{
+    el.addEventListener('click',(e)=>{ e.stopPropagation(); openRingZoom(rings[parseInt(el.dataset.ridx)]); });
+  });
+}
+
+function updateCargoAndCaption(i){
+  const st = stations[i];
+  const cap = document.getElementById('caption');
+  cap.style.opacity=0;
+  setTimeout(()=>{
+    document.getElementById('capTag').textContent = st.tag;
+    document.getElementById('capTag').style.setProperty('--lc', st.color);
+    document.getElementById('capTitle').textContent = st.title;
+    document.getElementById('capText').textContent = st.text;
+    cap.style.opacity=1;
+  }, 90);
+  renderRings(st.rings);
+  document.getElementById('hopHint').textContent = `Stop ${i+1} / ${stations.length}`;
+  document.getElementById('prevBtn').disabled = i===0;
+  document.getElementById('nextBtn').disabled = i===stations.length-1;
+}
+
+async function goStation(i, animate){
+  idx = Math.max(0, Math.min(stations.length-1, i));
+  moveTrainTo(idx, animate);
+  if(animate) await delay(400);
+  highlightStation(idx);
+  updateCargoAndCaption(idx);
+}
+
+function cancelJourney(){ playToken++; setControlsDisabled(false); }
+function setControlsDisabled(v){
+  document.getElementById('sendBtn').disabled = v;
+  document.querySelectorAll('.station').forEach(el=>el.style.pointerEvents = v ? 'none':'auto');
+}
+async function playJourney(){
+  const my = ++playToken;
+  setControlsDisabled(true);
+  for(let i=0;i<stations.length;i++){
+    if(my!==playToken) return;
+    await goStation(i, true);
+    if(my!==playToken) return;
+    await delay(820);
+  }
+  if(my===playToken) setControlsDisabled(false);
+}
+
+function openRingZoom(r){
+  const card = document.getElementById('zoomCard');
+  card.style.setProperty('--zc', r.color.startsWith('var')?r.color:'var(--amber)');
+  const fieldsHtml = (r.fields||[]).map(f=>`<div class="fieldrow"><span>${f[0]}</span><span>${f[1]}</span></div>`).join('');
+  const isTunnel = r.label.includes('Tunnel');
+  const desc = isTunnel
+    ? "This ring is the VPN tunnel wrapper: the whole original packet — its own IP header included — has become the encrypted payload of a new outer packet exchanged between two VPN gateways. A packet inside a packet."
+    : "This ring is the header this layer just added, wrapped around everything the layer above it handed down.";
+  card.innerHTML = `<div class="ztag">${r.label}</div><h2>${r.label.replace(/^L\\d · /,'')}</h2><p>${desc}</p>${fieldsHtml}<button class="zclose">Close</button>`;
+  card.querySelector('.zclose').addEventListener('click', ()=>document.getElementById('zoomOverlay').classList.remove('show'));
+  document.getElementById('zoomOverlay').classList.add('show');
+}
+document.getElementById('zoomOverlay').addEventListener('click',(e)=>{ if(e.target.id==='zoomOverlay') e.currentTarget.classList.remove('show'); });
+
+function getDeepDive(st){
+  const c = lastCtx, dt = c.dt;
+  let fields = [], body = "", note = "", noteType = "safe";
+
+  if(st.tag.startsWith('L7')){
+    fields = [["Application protocol", dt.app], ["Conventional port", dt.dport], ["Runs over", dt.proto]];
+    body = `Ports and IP addresses don't exist yet at this layer. But the ${dt.app} application already knows it wants port ${dt.dport} — the same port every ${dt.app} server listens on by convention, so both ends agree without asking.`;
+  } else if(st.tag.startsWith('L6')){
+    fields = [["Encryption here", cfg.encrypted?"TLS (or equivalent)":"None"], ["Protects","The payload / message content"], ["Never hides","Ports, IP addresses, or MAC addresses — those stay visible so the network can deliver it"]];
+    body = cfg.encrypted
+      ? "Encryption only scrambles what's inside — the message content. Everything added at the layers below (ports, IPs, MACs) still travels in the open, because routers and switches need to read it to move the packet along."
+      : "With encryption off, there's nothing scrambling the message content either. From here to the destination, the payload rides as plain text next to headers that were always going to be visible anyway.";
+    note = cfg.encrypted
+      ? "Encrypted payload + visible addressing is normal and expected — that's how the internet works even for secure traffic."
+      : "⚠ Anyone who can see this traffic — public Wi‑Fi, a compromised router, an ISP — can read the actual message, not just where it's headed.";
+    noteType = cfg.encrypted ? 'safe' : 'risk';
+  } else if(st.tag.startsWith('L5')){
+    fields = [["Session","A logical thread, not a port or address"],["Purpose","Keeps replies matched to this exchange"]];
+    body = "Session tracking has no port or protocol number of its own in OSI's model — in real traffic it's usually folded into whatever the application or TLS is already doing.";
+  } else if(st.tag.startsWith('L4')){
+    fields = [["Source port", c.sport], ["Destination port", dt.dport], ["Protocol", dt.proto]];
+    body = dt.proto === 'TCP'
+      ? "TCP opens a reliable, ordered connection — a three-way handshake first, then retransmits anything lost. Good for things that must arrive intact."
+      : "UDP just fires datagrams with no handshake and no automatic resend — faster, but a dropped one is gone. That trade-off is why real-time traffic often prefers it.";
+    body += ` The destination port is what tells Host B's OS which application should receive this. Ports 0–1023 are reserved for well-known services — see the reference table below.`;
+    note = cfg.encrypted
+      ? "Port numbers are always visible even when the payload is encrypted — they have to be, so routers and firewalls can do their job."
+      : "⚠ Unencrypted here means this port pairing and the payload behind it are both readable by anyone on the path.";
+    noteType = cfg.encrypted ? 'safe' : 'risk';
+  } else if(st.tag.startsWith('L3')){
+    fields = [["Source IP", c.srcIP], ["Destination IP", c.dstIP], ["TTL","64"]];
+    body = "IP addresses are how this gets routed across networks that aren't your own. Like ports, they're never hidden by encryption — a router has to read them to know where to send the packet next.";
+  } else if(st.tag.startsWith('L2')){
+    fields = [["Source MAC", c.srcMacA], ["Destination MAC", c.dstMacLocal]];
+    body = "MAC addresses only mean something for the current physical hop — the next device replaces them with its own. No ports and no IP protocol live at this layer; it's purely \"get it to the next box.\"";
+  } else if(st.tag.startsWith('Switch')){
+    fields = [["Reads","Destination MAC address only"], ["Decision","Forward out the right port, or flood if unknown"]];
+    body = "A switch never looks past Layer 2 — it has no concept of IP addresses, ports, or protocols. That's what makes it fast, and also why it can't filter traffic by application on its own.";
+  } else if(st.tag.startsWith('Router')){
+    fields = [["Reads","Destination IP address"], ["Decision","Best route, from its routing table"]];
+    body = "Routers work one layer up from switches. Some can also inspect Layer 4 port numbers for firewalling or NAT, but basic routing only needs the IP address.";
+  } else if(st.tag.startsWith('VPN')){
+    fields = [["Tunnel style","IPsec / GRE-style encapsulation"], ["Common VPN ports","UDP 500 & 4500 (IPsec/IKE), UDP 1194 (OpenVPN)"], ["Wraps","The entire original packet — headers included"]];
+    body = "The gateway adds its own outer IP header, addressed gateway-to-gateway, then encrypts everything inside — including your original IP and port numbers, which are normally always visible in transit.";
+    note = "This is the one stage in this whole trip that hides addressing, not just payload, from anyone outside the tunnel.";
+    noteType = 'safe';
+  }
+  return {fields, body, note, noteType};
+}
+
+function openStationZoom(){
+  const st = stations[idx];
+  const dd = getDeepDive(st);
+  const card = document.getElementById('stationZoomCard');
+  card.style.setProperty('--zc', st.color);
+  const fieldsHtml = dd.fields.map(f=>`<div class="fieldrow"><span>${f[0]}</span><span>${f[1]}</span></div>`).join('');
+  const noteHtml = dd.note ? `<div class="dive-note ${dd.noteType}">${dd.note}</div>` : '';
+  card.innerHTML = `<div class="ztag">${st.tag} · deep dive</div><h2>${st.title}</h2><p>${dd.body}</p>${fieldsHtml}${noteHtml}<button class="zclose" style="margin-top:14px;">Close</button>`;
+  card.querySelector('.zclose').addEventListener('click', ()=>document.getElementById('stationZoomOverlay').classList.remove('show'));
+  document.getElementById('stationZoomOverlay').classList.add('show');
+}
+document.getElementById('deepDiveBtn').addEventListener('click', openStationZoom);
+document.getElementById('stationZoomOverlay').addEventListener('click',(e)=>{ if(e.target.id==='stationZoomOverlay') e.currentTarget.classList.remove('show'); });
+
+function regenerate(){
+  cancelJourney();
+  stations = buildStations();
+  renderStations();
+  requestAnimationFrame(()=>{
+    positions = measurePositions();
+    idx = 0;
+    moveTrainTo(0,false);
+    highlightStation(0);
+    updateCargoAndCaption(0);
+  });
+}
+
+// controls
+const dtSelect = document.getElementById('dataType');
+Object.entries(DATA_TYPES).forEach(([k,v])=>{
+  const opt=document.createElement('option'); opt.value=k; opt.textContent=v.label; dtSelect.appendChild(opt);
+});
+dtSelect.value = cfg.dataType;
+dtSelect.addEventListener('change', ()=>{ cfg.dataType=dtSelect.value; regenerate(); });
+
+const btnEncrypted=document.getElementById('btnEncrypted'), btnPlain=document.getElementById('btnPlain');
+const encHint=document.getElementById('encHint');
+function setEncrypted(v){
+  cfg.encrypted=v;
+  btnEncrypted.classList.toggle('active', v);
+  btnPlain.classList.toggle('active', !v);
+  btnPlain.classList.toggle('warn', !v);
+  encHint.classList.toggle('warn', !v);
+  encHint.textContent = v
+    ? "Recommended — TLS scrambles the payload so only the two endpoints can read it."
+    : "⚠ Not recommended. Anyone between you and the destination — shared Wi‑Fi, a compromised router, your ISP — can read or tamper with this in plain text. Try it once to see where it's exposed, then compare with encryption on.";
+  regenerate();
+}
+btnEncrypted.addEventListener('click', ()=>setEncrypted(true));
+btnPlain.addEventListener('click', ()=>setEncrypted(false));
+
+const btnSwitch=document.getElementById('btnSwitch'), btnRouter=document.getElementById('btnRouter');
+const btnTrunk=document.getElementById('btnTrunk'), btnVpn=document.getElementById('btnVpn');
+
+function setTopology(t){
+  cfg.topology=t;
+  btnSwitch.classList.toggle('active', t==='switch');
+  btnRouter.classList.toggle('active', t==='router');
+  btnVpn.disabled = t!=='router';
+  if(t!=='router'){ cfg.vpn=false; btnVpn.classList.remove('active','amber'); btnVpn.textContent='Off'; }
+  regenerate();
+}
+btnSwitch.addEventListener('click', ()=>setTopology('switch'));
+btnRouter.addEventListener('click', ()=>setTopology('router'));
+btnTrunk.addEventListener('click', ()=>{
+  cfg.trunk=!cfg.trunk;
+  btnTrunk.classList.toggle('active',cfg.trunk); btnTrunk.classList.toggle('amber',cfg.trunk);
+  btnTrunk.textContent = cfg.trunk?'On — VLAN tagging':'Off';
+  regenerate();
+});
+btnVpn.addEventListener('click', ()=>{
+  if(btnVpn.disabled) return;
+  cfg.vpn=!cfg.vpn;
+  btnVpn.classList.toggle('active',cfg.vpn); btnVpn.classList.toggle('amber',cfg.vpn);
+  btnVpn.textContent = cfg.vpn?'On — Tunneling':'Off';
+  regenerate();
+});
+
+document.getElementById('sendBtn').addEventListener('click', ()=>{ regenerate(); setTimeout(playJourney, 60); });
+document.getElementById('prevBtn').addEventListener('click', ()=>{ cancelJourney(); goStation(idx-1,true); });
+document.getElementById('nextBtn').addEventListener('click', ()=>{ cancelJourney(); goStation(idx+1,true); });
+window.addEventListener('resize', ()=>{ positions = measurePositions(); moveTrainTo(idx,false); });
+
+const portTable=document.getElementById('portTable');
+PORTS.forEach(p=>{ const tr=document.createElement('tr'); tr.innerHTML=`<td>${p[0]}</td><td>${p[1]}</td><td>${p[2]}</td>`; portTable.appendChild(tr); });
+
+regenerate();
+</script>
+</body>
+</html>
